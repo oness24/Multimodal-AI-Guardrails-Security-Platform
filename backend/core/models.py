@@ -3,7 +3,7 @@ Database models for AdversarialShield.
 Uses SQLAlchemy with async support.
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
@@ -15,9 +15,14 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 
 from backend.core.database import Base
+
+
+def utcnow():
+    """Get current UTC time with timezone awareness."""
+    return datetime.now(timezone.utc)
 
 
 class AttackPattern(Base):
@@ -48,8 +53,8 @@ class AttackPattern(Base):
     tags = Column(JSON)  # Additional tags for categorization
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Active status
     is_active = Column(Boolean, default=True)
@@ -91,7 +96,7 @@ class AttackLog(Base):
     error_message = Column(Text)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
 
     def __repr__(self) -> str:
         return f"<AttackLog(technique={self.technique}, success={self.success})>"
@@ -124,7 +129,7 @@ class DetectionLog(Base):
     metadata = Column(JSON)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
 
     def __repr__(self) -> str:
         return f"<DetectionLog(technique={self.detected_technique}, confidence={self.confidence})>"
@@ -162,9 +167,84 @@ class VulnerabilityScan(Base):
     user_id = Column(String(100))
 
     # Timestamps
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at = Column(DateTime, default=utcnow, nullable=False)
     completed_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     def __repr__(self) -> str:
         return f"<VulnerabilityScan(type={self.scan_type}, status={self.status})>"
+
+
+class UserDB(Base):
+    """User account model for authentication and authorization."""
+
+    __tablename__ = "users"
+
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(100), nullable=False, unique=True, index=True)
+
+    # Authentication
+    email = Column(String(255), nullable=False, unique=True, index=True)
+    hashed_password = Column(String(255), nullable=False)
+
+    # Profile
+    full_name = Column(String(255))
+
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
+
+    # Permissions
+    scopes = Column(ARRAY(String), default=["read", "scan"], nullable=False)
+
+    # Account security
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime)
+    password_changed_at = Column(DateTime)
+
+    # Timestamps
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    last_login_at = Column(DateTime)
+
+    def __repr__(self) -> str:
+        return f"<UserDB(email={self.email}, is_active={self.is_active})>"
+
+
+class APIKeyDB(Base):
+    """API key model for programmatic access."""
+
+    __tablename__ = "api_keys"
+
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key_id = Column(String(100), nullable=False, unique=True, index=True)
+
+    # Key information (hashed for security)
+    key_hash = Column(String(255), nullable=False, index=True)
+    key_prefix = Column(String(16), nullable=False)  # First 16 chars for display
+    name = Column(String(255), nullable=False)
+
+    # Associated user
+    user_id = Column(String(100), nullable=False, index=True)
+
+    # Permissions
+    scopes = Column(ARRAY(String), default=["read", "scan"], nullable=False)
+
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+
+    # Expiration
+    expires_at = Column(DateTime)
+
+    # Usage tracking
+    last_used_at = Column(DateTime)
+    total_requests = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    revoked_at = Column(DateTime)
+
+    def __repr__(self) -> str:
+        return f"<APIKeyDB(name={self.name}, user_id={self.user_id}, is_active={self.is_active})>"
