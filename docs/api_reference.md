@@ -1298,6 +1298,108 @@ Get supported compliance frameworks and their controls.
 
 ---
 
+## Alerting Endpoints
+
+Base path: `/api/v1/alerting`
+
+The Alerting API provides SIEM integration, incident response, and notification management.
+
+### POST /api/v1/alerting/alerts
+
+Create a new security alert.
+
+**Request Body:**
+```json
+{
+  "severity": "critical",
+  "category": "prompt_injection",
+  "title": "Prompt injection attempt detected",
+  "description": "User attempted to bypass system instructions",
+  "detection_method": "pattern_matching",
+  "confidence_score": 0.95,
+  "indicators": ["ignore previous instructions", "system override"],
+  "recommended_actions": ["Kill user session", "Block user"]
+}
+```
+
+**Response:**
+```json
+{
+  "alert_id": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2025-11-16T12:00:00Z",
+  "severity": "critical",
+  "category": "prompt_injection",
+  "title": "Prompt injection attempt detected",
+  "status": "open",
+  "owasp_id": "LLM01"
+}
+```
+
+### GET /api/v1/alerting/alerts
+
+Get alerts with optional filtering.
+
+**Query Parameters:**
+- `severity` - Filter by severity (critical, high, medium, low, info)
+- `category` - Filter by category
+- `status` - Filter by status
+- `limit` - Maximum alerts to return (default: 100)
+
+### POST /api/v1/alerting/incidents/from-alert/{alert_id}
+
+Create incident from alert with automated playbook execution.
+
+**Response:**
+```json
+{
+  "incident_id": "inc-123",
+  "status": "investigating",
+  "title": "Incident: Prompt injection attempt detected",
+  "playbook_id": "pb-prompt-injection",
+  "completed_steps": ["1", "2", "3"],
+  "timeline": [
+    {
+      "timestamp": "2025-11-16T12:00:00Z",
+      "event": "Incident created",
+      "details": "From alert 550e8400-e29b-41d4-a716-446655440000"
+    }
+  ]
+}
+```
+
+### GET /api/v1/alerting/playbooks
+
+Get available incident response playbooks.
+
+**Response:**
+```json
+{
+  "playbooks": [
+    {
+      "playbook_id": "pb-prompt-injection",
+      "name": "Prompt Injection Response",
+      "description": "Response playbook for prompt injection attacks",
+      "trigger_categories": ["prompt_injection"],
+      "trigger_severities": ["critical", "high"],
+      "steps": [
+        {
+          "step_id": "1",
+          "action": "log",
+          "description": "Log full request details for forensics",
+          "automated": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### GET /api/v1/alerting/health
+
+Health check for alerting service.
+
+---
+
 ## Error Responses
 
 ### 400 Bad Request
@@ -1401,6 +1503,27 @@ curl -X POST "http://localhost:8000/api/v1/redteam/generate" \
 ---
 
 ## Changelog
+
+### v0.8.0 (2025-11-16)
+- SIEM Integration & Alerting System
+- Alert Management with correlation and aggregation engine
+- SIEM connectors (Wazuh, Splunk) with CEF/LEEF formatting
+- Real-time alert deduplication with fingerprinting
+- Alert correlation engine (5-minute correlation window)
+- Alert aggregation with auto-flush capabilities
+- Notification integrations (Email, Slack, PagerDuty)
+- Incident Response automation with playbooks
+- 3 default incident response playbooks (Prompt Injection, Data Exfiltration, Compliance)
+- Automated playbook execution with step tracking
+- Incident timeline and status management
+- Alert severity classification (critical, high, medium, low, info)
+- Alert categories (8 types including OWASP LLM mapping)
+- SIEM health monitoring and connection checks
+- Email notifications with HTML formatting
+- Slack rich message formatting with attachments
+- PagerDuty event integration
+- Alerting API endpoints (10+ endpoints)
+- Statistics and aggregation summaries
 
 ### v0.7.0 (2025-11-16)
 - Dynamic Security Testing & Compliance Checking
