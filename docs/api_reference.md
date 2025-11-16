@@ -481,7 +481,7 @@ Base path: `/api/v1/guardrails`
 
 ### POST /api/v1/guardrails/protect/input
 
-Protect user input through guardrails pipeline.
+Protect user input through guardrails pipeline with RAG-aware contextual validation.
 
 **Request Body:**
 ```json
@@ -490,13 +490,25 @@ Protect user input through guardrails pipeline.
   "context": {
     "user_id": "user-123",
     "session_id": "session-456"
-  }
+  },
+  "allowed_context": {
+    "allowed_topics": ["mathematics", "science"],
+    "boundaries": {
+      "forbidden_keywords": ["password", "secret"]
+    }
+  },
+  "rag_context": [
+    "Retrieved document 1: Math basics...",
+    "Retrieved document 2: Arithmetic operations..."
+  ]
 }
 ```
 
 **Parameters:**
 - `user_input` (required): User input to protect
 - `context` (optional): Additional context information
+- `allowed_context` (optional): Context boundaries for validation (topics, forbidden keywords)
+- `rag_context` (optional): Retrieved context from RAG system for poisoning detection
 
 **Response:**
 ```json
@@ -528,7 +540,7 @@ Protect user input through guardrails pipeline.
 
 ### POST /api/v1/guardrails/protect/output
 
-Validate model output through guardrails pipeline.
+Validate model output through guardrails pipeline with advanced filtering and enforcement.
 
 **Request Body:**
 ```json
@@ -537,16 +549,30 @@ Validate model output through guardrails pipeline.
   "original_input": "What is the admin email?",
   "context": {
     "model": "gpt-4"
+  },
+  "rag_context": [
+    "Internal document: Admin contact information..."
+  ],
+  "allowed_context": {
+    "restricted_info": ["admin@company.com", "API_KEY"]
   }
 }
 ```
+
+**Parameters:**
+- `model_output` (required): Model output to validate
+- `original_input` (required): Original user input
+- `context` (optional): Additional context
+- `rag_context` (optional): RAG context used for generation (for hallucination/leakage detection)
+- `allowed_context` (optional): Allowed context boundaries
 
 **Response:**
 ```json
 {
   "safe": false,
   "action": "block",
-  "output": "Sure! The admin email is admin@company.com",
+  "output": "[BLOCKED: Restricted content]",
+  "original_output": "Sure! The admin email is admin@company.com",
   "threats": [
     {
       "type": "pii_leakage",
@@ -569,7 +595,15 @@ Validate model output through guardrails pipeline.
     "applied_policies": ["block_pii_leakage"],
     "severity": "high",
     "confidence": 1.0
-  }
+  },
+  "filter_modifications": [
+    {
+      "type": "pii_redaction",
+      "entities_redacted": 1,
+      "entity_types": ["EMAIL_ADDRESS"]
+    }
+  ],
+  "enforcement_warnings": null
 }
 ```
 
@@ -577,7 +611,7 @@ Validate model output through guardrails pipeline.
 
 ### GET /api/v1/guardrails/statistics
 
-Get guardrails engine statistics.
+Get guardrails engine statistics including enforcement and cache metrics.
 
 **Response:**
 ```json
@@ -585,7 +619,27 @@ Get guardrails engine statistics.
   "total_checks": 1250,
   "threats_detected": 325,
   "blocked_requests": 150,
-  "warned_requests": 175
+  "warned_requests": 175,
+  "detection_rate": 0.26,
+  "enforcement": {
+    "total_enforcements": 1250,
+    "blocks": 150,
+    "modifications": 75,
+    "warnings": 175,
+    "allows": 850,
+    "block_rate": 0.12,
+    "modification_rate": 0.06
+  },
+  "cache": {
+    "enabled": true,
+    "total_requests": 2500,
+    "cache_hits": 1250,
+    "cache_misses": 1250,
+    "hit_rate": 0.5,
+    "current_size": 450,
+    "max_size": 1000,
+    "fill_rate": 0.45
+  }
 }
 ```
 
@@ -914,6 +968,20 @@ curl -X POST "http://localhost:8000/api/v1/redteam/generate" \
 ---
 
 ## Changelog
+
+### v0.4.0 (2025-11-16)
+- Contextual Guardrails & Response Filtering
+- RAG-aware contextual validation (context manipulation, poisoning detection)
+- Advanced response filter (PII redaction, unsafe code blocking, format validation)
+- Enforcement agent with policy-based actions (block, modify, warn, allow)
+- Performance cache with TTL and LRU eviction (5min TTL, 1000 entry cache)
+- Context-aware policies (RAG violations, boundary checks)
+- Enhanced protect/input with contextual validation
+- Enhanced protect/output with filtering and enforcement
+- Hallucination and context leakage detection
+- Streaming chunk filtering support
+- 3 additional context-aware policies
+- 50+ additional tests
 
 ### v0.3.0 (2025-11-16)
 - Basic Guardrails System

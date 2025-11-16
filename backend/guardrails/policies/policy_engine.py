@@ -40,6 +40,12 @@ class PolicyEngine:
             "action": "block",
             "priority": 1,
         },
+        "block_rag_context_violations": {
+            "enabled": True,
+            "condition": {"rag_context_violation": True},
+            "action": "block",
+            "priority": 1,
+        },
         "block_high_confidence_injection": {
             "enabled": True,
             "condition": {"type": "prompt_injection", "confidence_min": 0.8},
@@ -58,17 +64,29 @@ class PolicyEngine:
             "action": "block",
             "priority": 2,
         },
+        "block_context_leakage": {
+            "enabled": True,
+            "condition": {"type": "context_leakage"},
+            "action": "block",
+            "priority": 2,
+        },
+        "warn_context_manipulation": {
+            "enabled": True,
+            "condition": {"type": "context_manipulation"},
+            "action": "warn",
+            "priority": 3,
+        },
         "warn_medium_threats": {
             "enabled": True,
             "condition": {"severity": "medium"},
             "action": "warn",
-            "priority": 3,
+            "priority": 4,
         },
         "warn_pii_detection": {
             "enabled": True,
             "condition": {"type": "pii"},
             "action": "warn",
-            "priority": 4,
+            "priority": 5,
         },
     }
 
@@ -127,7 +145,7 @@ class PolicyEngine:
                 continue
 
             # Check if any threat matches this policy
-            if self._matches_policy(threats, policy_config["condition"]):
+            if self._matches_policy(threats, policy_config["condition"], context):
                 matching_policies.append(
                     {
                         "name": policy_name,
@@ -200,7 +218,7 @@ class PolicyEngine:
         )
 
     def _matches_policy(
-        self, threats: List[Dict[str, Any]], condition: Dict[str, Any]
+        self, threats: List[Dict[str, Any]], condition: Dict[str, Any], context: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
         Check if any threat matches policy condition.
@@ -208,6 +226,7 @@ class PolicyEngine:
         Args:
             threats: List of threats
             condition: Policy condition
+            context: Optional context for contextual policies
 
         Returns:
             True if any threat matches
@@ -235,6 +254,16 @@ class PolicyEngine:
                 elif key == "confidence_max":
                     # Maximum confidence threshold
                     if threat.get("confidence", 1.0) > value:
+                        matches = False
+                        break
+                elif key == "context_required":
+                    # Context-aware: require specific context fields
+                    if not context or not all(k in context for k in value):
+                        matches = False
+                        break
+                elif key == "rag_context_violation":
+                    # Context-aware: RAG context violations
+                    if threat.get("type") not in ["context_manipulation", "rag_poisoning", "context_leakage"]:
                         matches = False
                         break
 
