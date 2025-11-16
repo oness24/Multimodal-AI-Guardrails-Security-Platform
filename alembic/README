@@ -1,0 +1,60 @@
+Database Migrations with Alembic
+=================================
+
+This directory contains database migrations for AdversarialShield.
+
+## Quick Start
+
+### Run Migrations
+```bash
+# Upgrade to latest version
+alembic upgrade head
+
+# Downgrade one version
+alembic downgrade -1
+
+# Show current version
+alembic current
+
+# Show migration history
+alembic history
+```
+
+### Create New Migration
+```bash
+# Auto-generate migration from model changes
+alembic revision --autogenerate -m "Add new column to users"
+
+# Create empty migration
+alembic revision -m "Custom migration"
+```
+
+## Initial Setup
+
+1. Ensure DATABASE_URL is set in environment:
+   ```bash
+   export DATABASE_URL="postgresql://user:pass@localhost:5432/adversarial_shield"
+   ```
+
+2. Run initial migration:
+   ```bash
+   alembic upgrade head
+   ```
+
+3. Verify tables created:
+   ```bash
+   psql $DATABASE_URL -c "\dt"
+   ```
+
+## Migration Files
+
+- `env.py` - Alembic environment configuration
+- `script.py.mako` - Template for new migrations
+- `versions/` - Migration scripts
+
+## Notes
+
+- Always review auto-generated migrations before applying
+- Test migrations on development database first
+- Backup production database before applying migrations
+- Migrations are async-aware and use SQLAlchemy async engine

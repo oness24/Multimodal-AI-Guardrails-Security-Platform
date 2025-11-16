@@ -9,6 +9,11 @@ from fastapi.responses import JSONResponse
 
 from backend.core.config import settings
 from backend.core.database import close_db, init_db
+from backend.core.middleware import (
+    RequestLoggingMiddleware,
+    RequestSizeLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 
 @asynccontextmanager
@@ -20,11 +25,17 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting AdversarialShield...")
     await init_db()
     print("✅ Database connections initialized")
+
+    # Close Redis cache on shutdown
+    from backend.core.cache import cache
+
     yield
+
     # Shutdown
     print("🛑 Shutting down AdversarialShield...")
+    await cache.redis_cache.close()
     await close_db()
-    print("✅ Database connections closed")
+    print("✅ Connections closed gracefully")
 
 
 # Create FastAPI application
@@ -37,7 +48,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Configuration
+# Security Middleware (applied in reverse order)
+# Last added = first executed
+
+# 1. Request logging (executes last, logs final response)
+app.add_middleware(RequestLoggingMiddleware)
+
+# 2. Security headers (add headers to response)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 3. Request size limit (check before processing)
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_size=10 * 1024 * 1024  # 10 MB limit
+)
+
+# 4. CORS Configuration (executes first)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
