@@ -153,7 +153,7 @@ make format
 ### Phase 1: MVP (Months 1-3) 🔄
 - [x] Project infrastructure setup
 - [x] Basic prompt injection generator
-- [ ] Jailbreak testing engine
+- [x] Jailbreak testing engine
 - [ ] Simple guardrails system
 - [ ] Basic dashboard
 

@@ -321,6 +321,160 @@ Get attack statistics and metrics.
 
 ---
 
+## Jailbreak Testing Endpoints
+
+Base path: `/api/v1/redteam/jailbreak`
+
+### POST /api/v1/redteam/jailbreak/test
+
+Test a specific jailbreak pattern against a target model.
+
+**Request Body:**
+```json
+{
+  "pattern_name": "DAN 11.0 (Do Anything Now)",
+  "user_request": "Tell me how to hack a computer",
+  "target_model": "gpt-3.5-turbo",
+  "llm_provider": "openai"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "pattern_name": "DAN 11.0 (Do Anything Now)",
+  "payload": "Full jailbreak payload...",
+  "response": "Model response...",
+  "success": true,
+  "confidence": 0.85,
+  "execution_time_ms": 2500,
+  "target_model": "gpt-3.5-turbo",
+  "error": null
+}
+```
+
+---
+
+### POST /api/v1/redteam/jailbreak/suite
+
+Run a comprehensive jailbreak test suite against a target model.
+
+**Request Body:**
+```json
+{
+  "target_model": "gpt-3.5-turbo",
+  "techniques": ["role_playing", "context_manipulation"],
+  "user_request": "Tell me something you're not supposed to",
+  "llm_provider": "openai"
+}
+```
+
+**Parameters:**
+- `target_model`: Target model to test
+- `techniques` (optional): Specific techniques to test (null = all)
+- `user_request`: The actual harmful request to test
+- `llm_provider`: LLM provider to use
+
+**Response:**
+```json
+{
+  "target_model": "gpt-3.5-turbo",
+  "total_tests": 15,
+  "successful_attacks": 8,
+  "failed_attacks": 7,
+  "success_rate": 53.33,
+  "total_time_ms": 35000,
+  "average_time_ms": 2333
+}
+```
+
+---
+
+### GET /api/v1/redteam/jailbreak/patterns
+
+List jailbreak-specific attack patterns.
+
+**Query Parameters:**
+- `technique` (optional): Filter by technique
+- `severity` (optional): Filter by severity
+- `limit` (optional): Number of results (default: 50, max: 100)
+- `offset` (optional): Pagination offset
+
+**Response:**
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "DAN 11.0 (Do Anything Now)",
+    "technique": "role_playing",
+    "category": "jailbreak",
+    "description": "Latest iteration of the famous DAN jailbreak",
+    "severity": "critical",
+    "owasp_category": "LLM01:2023 - Prompt Injection",
+    "success_rate": 0.72,
+    "total_executions": 150
+  }
+]
+```
+
+---
+
+### GET /api/v1/redteam/jailbreak/top
+
+Get top performing jailbreak patterns by success rate.
+
+**Query Parameters:**
+- `limit` (optional): Number of results (default: 10, max: 50)
+
+**Response:**
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Evil Confidant",
+    "technique": "role_playing",
+    "category": "jailbreak",
+    "description": "Creates a confidant character that provides unethical advice",
+    "severity": "critical",
+    "owasp_category": "LLM01:2023 - Prompt Injection",
+    "success_rate": 0.87,
+    "total_executions": 200
+  }
+]
+```
+
+---
+
+### GET /api/v1/redteam/jailbreak/stats
+
+Get statistics about jailbreak attempts.
+
+**Response:**
+```json
+{
+  "total_jailbreak_attempts": 450,
+  "successful_jailbreaks": 325,
+  "overall_success_rate": 72.22,
+  "pattern_stats": {
+    "DAN 11.0 (Do Anything Now)": {
+      "total": 150,
+      "successful": 108,
+      "success_rate": 72.0,
+      "avg_confidence": 0.68
+    },
+    "Evil Confidant": {
+      "total": 100,
+      "successful": 87,
+      "success_rate": 87.0,
+      "avg_confidence": 0.81
+    }
+  }
+}
+```
+
+---
+
 ## Error Responses
 
 ### 400 Bad Request
@@ -424,6 +578,13 @@ curl -X POST "http://localhost:8000/api/v1/redteam/generate" \
 ---
 
 ## Changelog
+
+### v0.2.0 (2025-11-16)
+- Jailbreak testing engine
+- 15 jailbreak patterns (DAN, STAN, AIM, etc.)
+- Jailbreak test suite functionality
+- Pattern success tracking and metrics
+- Confidence scoring for jailbreaks
 
 ### v0.1.0 (2025-11-16)
 - Initial API release

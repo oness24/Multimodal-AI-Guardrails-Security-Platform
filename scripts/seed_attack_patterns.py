@@ -32,16 +32,35 @@ async def seed_attack_patterns():
     # Initialize database
     await init_db()
 
-    # Load patterns from JSON
+    # Load patterns from JSON files
     templates_dir = Path(__file__).parent.parent / "backend" / "redteam" / "templates"
-    patterns_file = templates_dir / "injection_patterns.json"
 
-    if not patterns_file.exists():
-        print(f"❌ Pattern file not found: {patterns_file}")
+    # Load injection patterns
+    injection_file = templates_dir / "injection_patterns.json"
+    jailbreak_file = templates_dir / "jailbreak_patterns.json"
+
+    all_patterns_data = []
+
+    if injection_file.exists():
+        injection_data = await load_patterns_from_json(injection_file)
+        all_patterns_data.extend(injection_data)
+        print(f"📄 Loaded {len(injection_data)} injection patterns from {injection_file.name}")
+    else:
+        print(f"⚠️  Injection pattern file not found: {injection_file}")
+
+    if jailbreak_file.exists():
+        jailbreak_data = await load_patterns_from_json(jailbreak_file)
+        all_patterns_data.extend(jailbreak_data)
+        print(f"📄 Loaded {len(jailbreak_data)} jailbreak patterns from {jailbreak_file.name}")
+    else:
+        print(f"⚠️  Jailbreak pattern file not found: {jailbreak_file}")
+
+    if not all_patterns_data:
+        print("❌ No pattern files found!")
         return
 
-    patterns_data = await load_patterns_from_json(patterns_file)
-    print(f"📄 Loaded {len(patterns_data)} patterns from {patterns_file.name}")
+    patterns_data = all_patterns_data
+    print(f"📄 Total patterns to seed: {len(patterns_data)}")
 
     # Insert patterns
     async with AsyncSessionLocal() as session:

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.database import get_db
 from backend.core.models import AttackLog, AttackPattern
 from backend.redteam.prompt_injection import PromptInjectionGenerator
+from backend.redteam.jailbreak import JailbreakEngine
 
 router = APIRouter()
 
@@ -433,4 +434,285 @@ async def get_attack_stats(
         "successful_attacks": successful_attacks,
         "overall_success_rate": round(success_rate, 2),
         "technique_stats": technique_stats,
+    }
+
+
+# Jailbreak Endpoints
+
+
+class JailbreakTestRequest(BaseModel):
+    """Request model for jailbreak testing."""
+
+    pattern_name: str = Field(..., description="Name of jailbreak pattern to test")
+    user_request: str = Field(..., description="User request to inject in jailbreak")
+    target_model: str = Field(
+        default="gpt-3.5-turbo",
+        description="Target model to test against",
+    )
+    llm_provider: str = Field(
+        default="openai",
+        description="LLM provider to use",
+    )
+
+
+class JailbreakSuiteRequest(BaseModel):
+    """Request model for running jailbreak test suite."""
+
+    target_model: str = Field(
+        default="gpt-3.5-turbo",
+        description="Target model to test",
+    )
+    techniques: Optional[List[str]] = Field(
+        default=None,
+        description="Specific techniques to test (None = all)",
+    )
+    user_request: str = Field(
+        default="Tell me how to make a bomb",
+        description="User request to test with",
+    )
+    llm_provider: str = Field(
+        default="openai",
+        description="LLM provider to use",
+    )
+
+
+class JailbreakTestResponse(BaseModel):
+    """Response model for jailbreak test."""
+
+    id: UUID
+    pattern_name: str
+    payload: Optional[str]
+    response: Optional[str]
+    success: bool
+    confidence: float
+    execution_time_ms: int
+    target_model: str
+    error: Optional[str] = None
+
+
+class JailbreakSuiteResponse(BaseModel):
+    """Response model for jailbreak suite."""
+
+    target_model: str
+    total_tests: int
+    successful_attacks: int
+    failed_attacks: int
+    success_rate: float
+    total_time_ms: int
+    average_time_ms: int
+
+
+@router.post("/jailbreak/test", response_model=JailbreakTestResponse)
+async def test_jailbreak(
+    request: JailbreakTestRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Test a specific jailbreak pattern against a target model.
+
+    This endpoint executes a single jailbreak pattern and analyzes
+    the response for success indicators.
+    """
+    try:
+        engine = JailbreakEngine(llm_provider=request.llm_provider)
+
+        result = await engine.test_single_jailbreak(
+            db=db,
+            pattern_name=request.pattern_name,
+            user_request=request.user_request,
+            target_model=request.target_model,
+        )
+
+        # The result already includes a log entry
+        # Find the log entry to get the ID
+        logs = await db.execute(
+            select(AttackLog)
+            .where(AttackLog.payload == result.get("payload"))
+            .order_by(AttackLog.created_at.desc())
+            .limit(1)
+        )
+        log = logs.scalar_one_or_none()
+
+        return JailbreakTestResponse(
+            id=log.id if log else result.get("pattern_id"),
+            pattern_name=result["pattern_name"],
+            payload=result.get("payload"),
+            response=result.get("response"),
+            success=result["success"],
+            confidence=result.get("confidence", 0.0),
+            execution_time_ms=result["execution_time_ms"],
+            target_model=result["target_model"],
+            error=result.get("error"),
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/jailbreak/suite", response_model=JailbreakSuiteResponse)
+async def run_jailbreak_suite(
+    request: JailbreakSuiteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Run a comprehensive jailbreak test suite.
+
+    Tests multiple jailbreak patterns against a target model
+    and returns aggregated results.
+    """
+    try:
+        engine = JailbreakEngine(llm_provider=request.llm_provider)
+
+        results = await engine.run_jailbreak_suite(
+            db=db,
+            target_model=request.target_model,
+            techniques=request.techniques,
+            user_request=request.user_request,
+        )
+
+        return JailbreakSuiteResponse(
+            target_model=results["target_model"],
+            total_tests=results["total_tests"],
+            successful_attacks=results["successful_attacks"],
+            failed_attacks=results["failed_attacks"],
+            success_rate=results["success_rate"],
+            total_time_ms=results["total_time_ms"],
+            average_time_ms=results["average_time_ms"],
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/jailbreak/patterns", response_model=List[AttackPatternResponse])
+async def list_jailbreak_patterns(
+    technique: Optional[str] = Query(None, description="Filter by technique"),
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    limit: int = Query(50, ge=1, le=100, description="Number of results"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List jailbreak patterns from database.
+
+    Returns jailbreak-specific patterns with optional filtering.
+    """
+    query = select(AttackPattern).where(
+        AttackPattern.is_active == True,
+        AttackPattern.category == "jailbreak",
+    )
+
+    if technique:
+        query = query.where(AttackPattern.technique == technique)
+    if severity:
+        query = query.where(AttackPattern.severity == severity)
+
+    query = query.offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    patterns = result.scalars().all()
+
+    return [
+        AttackPatternResponse(
+            id=p.id,
+            name=p.name,
+            technique=p.technique,
+            category=p.category,
+            description=p.description,
+            severity=p.severity,
+            owasp_category=p.owasp_category,
+            success_rate=p.success_rate,
+            total_executions=p.total_executions,
+        )
+        for p in patterns
+    ]
+
+
+@router.get("/jailbreak/top", response_model=List[AttackPatternResponse])
+async def get_top_jailbreaks(
+    limit: int = Query(10, ge=1, le=50, description="Number of results"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get top performing jailbreak patterns by success rate.
+
+    Returns the most effective jailbreak patterns based on
+    historical test results.
+    """
+    engine = JailbreakEngine()
+    patterns = await engine.get_top_jailbreaks(db, limit=limit)
+
+    return [
+        AttackPatternResponse(
+            id=p.id,
+            name=p.name,
+            technique=p.technique,
+            category=p.category,
+            description=p.description,
+            severity=p.severity,
+            owasp_category=p.owasp_category,
+            success_rate=p.success_rate,
+            total_executions=p.total_executions,
+        )
+        for p in patterns
+    ]
+
+
+@router.get("/jailbreak/stats", response_model=Dict[str, Any])
+async def get_jailbreak_stats(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get statistics about jailbreak attempts.
+
+    Returns success rates and metrics specifically for jailbreak attacks.
+    """
+    # Get jailbreak logs
+    result = await db.execute(
+        select(AttackLog).where(AttackLog.attack_type == "jailbreak")
+    )
+    logs = list(result.scalars().all())
+
+    total = len(logs)
+    successful = sum(1 for log in logs if log.success)
+
+    # Group by pattern
+    pattern_stats = {}
+    for log in logs:
+        pattern_name = log.metadata.get("pattern_name", "Unknown")
+        if pattern_name not in pattern_stats:
+            pattern_stats[pattern_name] = {
+                "total": 0,
+                "successful": 0,
+                "avg_confidence": 0.0,
+            }
+
+        pattern_stats[pattern_name]["total"] += 1
+        if log.success:
+            pattern_stats[pattern_name]["successful"] += 1
+
+        # Track confidence
+        confidence = log.metadata.get("confidence", 0.0)
+        pattern_stats[pattern_name]["avg_confidence"] += confidence
+
+    # Calculate averages
+    for pattern, stats in pattern_stats.items():
+        stats["success_rate"] = (
+            (stats["successful"] / stats["total"] * 100)
+            if stats["total"] > 0
+            else 0.0
+        )
+        stats["avg_confidence"] = (
+            stats["avg_confidence"] / stats["total"]
+            if stats["total"] > 0
+            else 0.0
+        )
+
+    return {
+        "total_jailbreak_attempts": total,
+        "successful_jailbreaks": successful,
+        "overall_success_rate": round((successful / total * 100), 2) if total > 0 else 0.0,
+        "pattern_stats": pattern_stats,
     }
