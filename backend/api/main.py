@@ -72,9 +72,10 @@ async def root():
     }
 
 
-# API Routes (to be added)
-# from backend.api.routes import redteam, guardrails, scanner, threat_intel, reports
-# app.include_router(redteam.router, prefix="/api/v1/redteam", tags=["Red Team"])
+# API Routes
+from backend.api.routes import redteam
+
+app.include_router(redteam.router, prefix="/api/v1/redteam", tags=["Red Team"])
 # app.include_router(guardrails.router, prefix="/api/v1/guardrails", tags=["Guardrails"])
 # app.include_router(scanner.router, prefix="/api/v1/scanner", tags=["Scanner"])
 # app.include_router(threat_intel.router, prefix="/api/v1/threat-intel", tags=["Threat Intelligence"])

@@ -82,9 +82,9 @@ make frontend-dev
 - [Quick Start Guide](docs/quick_start.md)
 - [Architecture Overview](docs/architecture.md)
 - [Build Plan](BUILD_PLAN.md)
-- API Reference (Coming Soon)
+- [API Reference](docs/api_reference.md)
+- [Development Guide (CLAUDE.md)](CLAUDE.md)
 - User Guide (Coming Soon)
-- Development Guide (Coming Soon)
 
 ## 🏗️ Project Structure
 
@@ -150,9 +150,9 @@ make format
 
 ## 📊 Roadmap
 
-### Phase 1: MVP (Months 1-3) ✅
+### Phase 1: MVP (Months 1-3) 🔄
 - [x] Project infrastructure setup
-- [ ] Basic prompt injection generator
+- [x] Basic prompt injection generator
 - [ ] Jailbreak testing engine
 - [ ] Simple guardrails system
 - [ ] Basic dashboard
