@@ -10,16 +10,20 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/adversarial_shield
-      - REDIS_URL=redis://redis:6379/0
-      - MONGODB_URL=mongodb://mongodb:27017/adversarial_shield
-      - ENVIRONMENT=development
+      # Database URLs - credentials from environment variables
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-adversarial_shield}
+      - REDIS_URL=redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      - MONGODB_URL=mongodb://${MONGO_USER:+${MONGO_USER}:${MONGO_PASSWORD}@}mongodb:27017/${MONGO_DB:-adversarial_shield}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     env_file:
       - ../.env
     depends_on:
-      - postgres
-      - redis
-      - mongodb
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
     volumes:
       - ../backend:/app/backend
       - ../ml_models:/app/ml_models
@@ -27,6 +31,7 @@ services:
     command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - adversarial-shield-network
+    restart: unless-stopped
 
   # Frontend
   frontend:
@@ -53,18 +58,20 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: adversarial-shield-postgres
-    ports:
-      - "5432:5432"
+    # SECURITY: Database ports should NOT be exposed in production
+    # Uncomment only for local development debugging
+    # ports:
+    #   - "5432:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=adversarial_shield
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=${POSTGRES_DB:-adversarial_shield}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - adversarial-shield-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,8 +80,20 @@ services:
   redis:
     image: redis:7-alpine
     container_name: adversarial-shield-redis
-    ports:
-      - "6379:6379"
+    # SECURITY: Database ports should NOT be exposed in production
+    # Uncomment only for local development debugging
+    # ports:
+    #   - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    command: >
+      sh -c "
+      if [ -n \"$$REDIS_PASSWORD\" ]; then
+        redis-server --requirepass $$REDIS_PASSWORD
+      else
+        redis-server
+      fi
+      "
     volumes:
       - redis-data:/data
     networks:
@@ -89,10 +108,14 @@ services:
   mongodb:
     image: mongo:7
     container_name: adversarial-shield-mongodb
-    ports:
-      - "27017:27017"
+    # SECURITY: Database ports should NOT be exposed in production
+    # Uncomment only for local development debugging
+    # ports:
+    #   - "27017:27017"
     environment:
-      - MONGO_INITDB_DATABASE=adversarial_shield
+      - MONGO_INITDB_DATABASE=${MONGO_DB:-adversarial_shield}
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER:-}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-}
     volumes:
       - mongodb-data:/data/db
     networks:
@@ -111,21 +134,26 @@ services:
     container_name: adversarial-shield-celery-worker
     command: celery -A backend.core.celery_app worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/adversarial_shield
-      - REDIS_URL=redis://redis:6379/0
-      - MONGODB_URL=mongodb://mongodb:27017/adversarial_shield
+      # Database URLs - credentials from environment variables
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-adversarial_shield}
+      - REDIS_URL=redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      - MONGODB_URL=mongodb://${MONGO_USER:+${MONGO_USER}:${MONGO_PASSWORD}@}mongodb:27017/${MONGO_DB:-adversarial_shield}
     env_file:
       - ../.env
     depends_on:
-      - postgres
-      - redis
-      - mongodb
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
     volumes:
       - ../backend:/app/backend
       - ../ml_models:/app/ml_models
       - ../data:/app/data
     networks:
       - adversarial-shield-network
+    restart: unless-stopped
 
   # Flower (Celery monitoring)
   flower:

@@ -2,6 +2,7 @@
 Caching utilities for performance optimization.
 
 Implements Redis-based caching with fallback to in-memory cache.
+Uses async Redis for proper non-blocking operations.
 """
 import hashlib
 import json
@@ -9,7 +10,7 @@ import logging
 from functools import wraps
 from typing import Any, Callable, Optional
 
-import redis
+import redis.asyncio as redis
 from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -34,72 +35,106 @@ class CacheBackend:
         """Clear all cache."""
         raise NotImplementedError
 
+    async def close(self):
+        """Close connections."""
+        pass
+
 
 class RedisCache(CacheBackend):
-    """Redis cache backend."""
+    """Redis cache backend with async support."""
 
     def __init__(self):
-        """Initialize Redis connection."""
+        """Initialize Redis connection pool."""
+        self.redis = None
+        self.available = False
+        self._initialized = False
+
+    async def _ensure_connection(self):
+        """Ensure Redis connection is established (lazy initialization)."""
+        if self._initialized:
+            return
+
         try:
-            self.redis = redis.from_url(
+            self.redis = await redis.from_url(
                 settings.redis_url,
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
+                max_connections=50,
             )
             # Test connection
-            self.redis.ping()
+            await self.redis.ping()
             self.available = True
+            self._initialized = True
             logger.info("Redis cache initialized successfully")
-        except (redis.ConnectionError, redis.TimeoutError) as e:
+        except (redis.ConnectionError, redis.TimeoutError, Exception) as e:
             logger.warning(f"Redis connection failed: {e}. Falling back to in-memory cache.")
             self.available = False
+            self._initialized = True
 
     async def get(self, key: str) -> Optional[Any]:
         """Get value from Redis."""
+        await self._ensure_connection()
+
         if not self.available:
             return None
 
         try:
-            value = self.redis.get(key)
+            value = await self.redis.get(key)
             if value:
                 return json.loads(value)
             return None
         except Exception as e:
             logger.error(f"Error getting from Redis: {e}")
+            self.available = False  # Mark as unavailable on error
             return None
 
     async def set(self, key: str, value: Any, ttl: int = 3600):
         """Set value in Redis with TTL."""
+        await self._ensure_connection()
+
         if not self.available:
             return
 
         try:
             serialized = json.dumps(value)
-            self.redis.setex(key, ttl, serialized)
+            await self.redis.setex(key, ttl, serialized)
         except Exception as e:
             logger.error(f"Error setting in Redis: {e}")
+            self.available = False
 
     async def delete(self, key: str):
         """Delete key from Redis."""
+        await self._ensure_connection()
+
         if not self.available:
             return
 
         try:
-            self.redis.delete(key)
+            await self.redis.delete(key)
         except Exception as e:
             logger.error(f"Error deleting from Redis: {e}")
+            self.available = False
 
     async def clear(self):
         """Clear all keys from Redis."""
+        await self._ensure_connection()
+
         if not self.available:
             return
 
         try:
-            self.redis.flushdb()
+            await self.redis.flushdb()
             logger.info("Redis cache cleared")
         except Exception as e:
             logger.error(f"Error clearing Redis: {e}")
+            self.available = False
+
+    async def close(self):
+        """Close Redis connection."""
+        if self.redis:
+            await self.redis.close()
+            logger.info("Redis connection closed")
 
 
 class InMemoryCache(CacheBackend):
