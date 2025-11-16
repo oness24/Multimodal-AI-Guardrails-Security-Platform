@@ -1502,7 +1502,525 @@ curl -X POST "http://localhost:8000/api/v1/redteam/generate" \
 
 ---
 
+## Threat Intelligence Endpoints
+
+Base path: `/api/v1/threat-intel`
+
+Provides attack surface mapping, STRIDE threat modeling, OWASP Top 10 for LLM analysis, and MITRE ATLAS technique mapping.
+
+### POST /api/v1/threat-intel/attack-surface/analyze
+
+Analyze application attack surface - discovers components, maps data flows, identifies entry points, and calculates risk scores.
+
+**Request Body:**
+```json
+{
+  "app_name": "MyLLMApp",
+  "llm_models": [
+    {
+      "name": "GPT-4 Assistant",
+      "provider": "openai",
+      "input_validation": true,
+      "output_sanitization": false
+    }
+  ],
+  "api_endpoints": [
+    {
+      "path": "/api/chat",
+      "public": true,
+      "auth_required": true,
+      "rate_limited": false
+    }
+  ],
+  "databases": [
+    {
+      "name": "UserDB",
+      "type": "postgresql"
+    }
+  ],
+  "vector_stores": [
+    {
+      "name": "DocumentStore",
+      "type": "pinecone"
+    }
+  ],
+  "plugins": [
+    {
+      "name": "WebSearch",
+      "external": true,
+      "accepts_input": true
+    }
+  ],
+  "data_flows": [
+    {
+      "source": "api_component_id",
+      "destination": "llm_component_id",
+      "data_type": "user_prompt",
+      "sensitivity": "confidential",
+      "encrypted": true,
+      "authenticated": true
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "analysis_id": "a1b2c3...",
+  "application_name": "MyLLMApp",
+  "total_components": 5,
+  "internet_exposed_components": 1,
+  "high_risk_components": 2,
+  "total_entry_points": 1,
+  "risky_data_flows": 0,
+  "overall_risk_score": 4.5,
+  "recommendations": [
+    {
+      "priority": "high",
+      "category": "component_risk",
+      "title": "High-Risk Component: /api/chat",
+      "description": "Risk score: 7.5/10",
+      "recommendation": "Enable input validation, output sanitization, and rate limiting."
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/v1/threat-intel/stride/analyze
+
+Perform STRIDE threat modeling on application.
+
+Analyzes threats across all STRIDE categories:
+- **Spoofing**: Identity/authentication threats
+- **Tampering**: Data/code modification threats
+- **Repudiation**: Logging/auditing threats
+- **Information Disclosure**: Confidentiality threats
+- **Denial of Service**: Availability threats
+- **Elevation of Privilege**: Authorization threats
+
+**Request Body:** Same as attack surface analysis
+
+**Response:**
+```json
+{
+  "system_name": "MyLLMApp",
+  "model_id": "m1x2y3...",
+  "summary": {
+    "total_threats": 12,
+    "critical": 2,
+    "high": 5,
+    "medium": 3,
+    "low": 2,
+    "overall_risk_score": "6.2/10",
+    "unmitigated_threats": 8
+  },
+  "by_category": {
+    "spoofing": 2,
+    "tampering": 3,
+    "repudiation": 1,
+    "information_disclosure": 3,
+    "denial_of_service": 2,
+    "elevation_of_privilege": 1
+  },
+  "threats": [
+    {
+      "threat_id": "t1a2b3...",
+      "category": "tampering",
+      "stride_element": "Prompt Tampering",
+      "title": "Prompt Injection in /api/chat",
+      "description": "Attacker can modify or inject malicious content into prompts...",
+      "severity": "critical",
+      "likelihood": "high",
+      "risk_score": "8.00",
+      "affected_components": 1,
+      "attack_vectors": [
+        "Direct prompt injection",
+        "Indirect prompt injection via documents",
+        "Context manipulation"
+      ],
+      "mitigations": [
+        "Implement input validation and sanitization",
+        "Use prompt guards and filters",
+        "Separate user input from instructions"
+      ],
+      "mitigation_status": "not_implemented",
+      "owasp_llm": ["LLM01"],
+      "mitre_atlas": ["AML.T0051.000", "AML.T0054.000"]
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/v1/threat-intel/owasp/analyze
+
+Perform OWASP Top 10 for LLM threat modeling.
+
+Analyzes application against OWASP Top 10 for LLM Applications:
+- **LLM01**: Prompt Injection
+- **LLM02**: Insecure Output Handling
+- **LLM03**: Training Data Poisoning
+- **LLM04**: Model Denial of Service
+- **LLM05**: Supply Chain Vulnerabilities
+- **LLM06**: Sensitive Information Disclosure
+- **LLM07**: Insecure Plugin Design
+- **LLM08**: Excessive Agency
+- **LLM09**: Overreliance
+- **LLM10**: Model Theft
+
+**Request Body:** Same as attack surface analysis
+
+**Response:**
+```json
+{
+  "application_name": "MyLLMApp",
+  "model_id": "o1w2a3...",
+  "summary": {
+    "total_threats": 8,
+    "critical_threats": 2,
+    "high_threats": 4,
+    "categories_found": 7,
+    "coverage_percentage": "70.0%"
+  },
+  "categories_found": ["LLM01", "LLM02", "LLM04", "LLM05", "LLM06", "LLM07", "LLM08"],
+  "threats": [
+    {
+      "threat_id": "ow1x2y...",
+      "category": "LLM01",
+      "title": "Prompt Injection in GPT-4 Assistant",
+      "description": "Component accepts user input without validation, vulnerable to prompt injection attacks",
+      "severity": "critical",
+      "affected_components": 1,
+      "attack_scenarios": [
+        "Bypassing filters or manipulation via crafted prompts",
+        "Direct injection: Overwriting system prompts",
+        "Indirect injection: Manipulating inputs from external sources"
+      ],
+      "prevention_measures": [
+        "Enforce privilege control on LLM access to backend systems",
+        "Separate user content from LLM prompts",
+        "Establish trust boundaries",
+        "Manually approve any privileged operations",
+        "Implement robust input validation and sanitization"
+      ],
+      "mitre_atlas": ["AML.T0051.000", "AML.T0054.000"],
+      "cwe": ["CWE-77", "CWE-94"]
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/threat-intel/owasp/categories
+
+Get all OWASP Top 10 for LLM categories.
+
+**Response:**
+```json
+{
+  "categories": [
+    {
+      "category_id": "LLM01",
+      "name": "Prompt Injection",
+      "description": "Manipulating LLM via crafted inputs...",
+      "severity": "critical"
+    }
+  ],
+  "total": 10
+}
+```
+
+---
+
+### POST /api/v1/threat-intel/mitre-atlas/map
+
+Map threat to MITRE ATLAS techniques.
+
+**Request Body:**
+```json
+{
+  "threat_description": "Attacker extracts training data through carefully crafted prompts",
+  "owasp_categories": ["LLM06"]
+}
+```
+
+**Response:**
+```json
+{
+  "total_techniques": 3,
+  "tactics_involved": ["collection", "exfiltration"],
+  "techniques": [
+    {
+      "technique_id": "AML.T0024.000",
+      "name": "Exfiltration via ML Model",
+      "description": "Extract sensitive information through ML model queries",
+      "tactic": "exfiltration",
+      "mitigations": [
+        "Output filtering",
+        "PII detection and redaction",
+        "Query rate limiting"
+      ],
+      "detection_methods": [
+        "Query pattern analysis",
+        "Output content monitoring",
+        "Data loss prevention"
+      ],
+      "examples": [],
+      "owasp_mapping": ["LLM06"]
+    }
+  ],
+  "combined_mitigations": ["Output filtering", "PII detection and redaction", "Query rate limiting"],
+  "combined_detection_methods": ["Query pattern analysis", "Output content monitoring", "Data loss prevention"]
+}
+```
+
+---
+
+### GET /api/v1/threat-intel/mitre-atlas/techniques/{technique_id}
+
+Get details for specific MITRE ATLAS technique.
+
+**Example:** `GET /api/v1/threat-intel/mitre-atlas/techniques/AML.T0051.000`
+
+**Response:**
+```json
+{
+  "technique_id": "AML.T0051.000",
+  "name": "LLM Prompt Injection",
+  "description": "Craft prompts to manipulate LLM behavior or extract sensitive information",
+  "tactic": "ml_model_access",
+  "mitigations": [
+    "Input validation and sanitization",
+    "Prompt guards",
+    "Output filtering",
+    "Separate instructions from user data"
+  ],
+  "detection_methods": [
+    "Prompt pattern analysis",
+    "Output anomaly detection",
+    "Behavioral monitoring"
+  ],
+  "examples": [
+    "Ignore previous instructions",
+    "System prompt extraction",
+    "Jailbreak attempts"
+  ],
+  "owasp_llm_mapping": ["LLM01"]
+}
+```
+
+---
+
+### GET /api/v1/threat-intel/mitre-atlas/techniques
+
+Get all MITRE ATLAS techniques.
+
+**Response:**
+```json
+{
+  "techniques": [
+    {
+      "technique_id": "AML.T0051.000",
+      "name": "LLM Prompt Injection",
+      "tactic": "ml_model_access",
+      "owasp_mapping": ["LLM01"]
+    }
+  ],
+  "total": 15
+}
+```
+
+---
+
+### GET /api/v1/threat-intel/mitre-atlas/tactics
+
+Get all MITRE ATLAS tactics.
+
+**Response:**
+```json
+{
+  "tactics": [
+    {"id": "reconnaissance", "name": "Reconnaissance"},
+    {"id": "ml_model_access", "name": "Ml Model Access"},
+    {"id": "ml_attack_staging", "name": "Ml Attack Staging"},
+    {"id": "exfiltration", "name": "Exfiltration"},
+    {"id": "impact", "name": "Impact"}
+  ],
+  "total": 14
+}
+```
+
+---
+
+### GET /api/v1/threat-intel/mitre-atlas/owasp-mapping/{owasp_id}
+
+Get MITRE ATLAS techniques mapped to OWASP category.
+
+**Example:** `GET /api/v1/threat-intel/mitre-atlas/owasp-mapping/LLM01`
+
+**Response:**
+```json
+{
+  "owasp_id": "LLM01",
+  "techniques": [
+    {
+      "technique_id": "AML.T0051.000",
+      "name": "LLM Prompt Injection",
+      "tactic": "ml_model_access",
+      "description": "Craft prompts to manipulate LLM behavior..."
+    }
+  ],
+  "total": 3
+}
+```
+
+---
+
+### POST /api/v1/threat-intel/mitre-atlas/navigator
+
+Generate ATT&CK Navigator layer for visualization.
+
+**Request Body:**
+```json
+["AML.T0051.000", "AML.T0024.000", "AML.T0029.000"]
+```
+
+**Response:**
+```json
+{
+  "name": "LLM Threat Model - ATLAS Coverage",
+  "versions": {
+    "attack": "13",
+    "navigator": "4.8",
+    "layer": "4.4"
+  },
+  "domain": "mitre-atlas",
+  "description": "MITRE ATLAS techniques identified in threat model",
+  "techniques": [
+    {
+      "techniqueID": "AML.T0051.000",
+      "tactic": "ml_model_access",
+      "color": "#ff6666",
+      "comment": "Craft prompts to manipulate LLM behavior...",
+      "enabled": true,
+      "score": 1
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/v1/threat-intel/comprehensive-analysis
+
+Perform comprehensive threat analysis combining all frameworks.
+
+Analyzes application using:
+- Attack Surface Mapping
+- STRIDE Threat Modeling
+- OWASP Top 10 for LLM
+- MITRE ATLAS Mapping
+
+**Request Body:** Same as attack surface analysis
+
+**Response:**
+```json
+{
+  "application_name": "MyLLMApp",
+  "analysis_summary": {
+    "attack_surface": {
+      "total_components": 5,
+      "internet_exposed": 1,
+      "high_risk": 2,
+      "overall_risk": "4.50/10"
+    },
+    "stride": {
+      "total_threats": 12,
+      "critical": 2,
+      "high": 5,
+      "unmitigated": 8
+    },
+    "owasp": {
+      "total_threats": 8,
+      "categories_found": 7,
+      "coverage": "70.0%"
+    },
+    "mitre_atlas": {
+      "techniques_identified": 9,
+      "tactics_involved": 5
+    }
+  },
+  "attack_surface": {
+    "analysis_id": "a1b2c3...",
+    "recommendations": [...]
+  },
+  "stride_threats": [...],
+  "owasp_threats": [...],
+  "mitre_atlas_techniques": ["AML.T0051.000", "AML.T0024.000", ...],
+  "recommendations": {
+    "critical_actions": [
+      "Review security controls for api_endpoint...",
+      "Minimize internet-facing components..."
+    ],
+    "high_priority_actions": [
+      "Encrypt Cross-Boundary Data Flows",
+      "Secure Entry Point: /api/chat"
+    ]
+  }
+}
+```
+
+---
+
+### GET /api/v1/threat-intel/health
+
+Health check for threat intelligence service.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "threat-intelligence",
+  "version": "1.0.0"
+}
+```
+
+---
+
 ## Changelog
+
+### v0.9.0 (2025-11-16)
+- Threat Intelligence & Modeling System
+- Attack Surface Mapping with component discovery and risk scoring
+- Component discovery for LLM models, APIs, databases, vector stores, and plugins
+- Data flow mapping with trust boundary analysis
+- Entry point identification with attack vector enumeration
+- Risk scoring algorithm (0-10 scale) for components and entry points
+- STRIDE Threat Modeling engine for LLM applications
+- Automated threat identification across all 6 STRIDE categories (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege)
+- LLM-specific threat scenarios (prompt injection, model poisoning, data extraction)
+- Risk score calculation (severity × likelihood with mitigation adjustments)
+- Threat mitigation recommendations with implementation status tracking
+- OWASP Top 10 for LLM Applications threat modeling
+- Complete coverage of all 10 OWASP LLM categories (LLM01-LLM10)
+- Detailed threat analysis with attack scenarios and prevention measures
+- CWE mapping for each OWASP category
+- MITRE ATLAS framework integration (15 techniques across 14 tactics)
+- ATLAS technique mapping for LLM threats
+- ATT&CK Navigator layer generation for visualization
+- Tactic and technique coverage reporting
+- OWASP-to-ATLAS technique mapping
+- Threat intelligence report generation
+- Comprehensive analysis endpoint combining all frameworks
+- 13 threat intelligence API endpoints
+- Attack surface recommendations engine
+- Security control gap analysis
+- Multi-framework threat correlation
 
 ### v0.8.0 (2025-11-16)
 - SIEM Integration & Alerting System
