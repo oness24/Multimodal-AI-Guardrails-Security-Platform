@@ -73,8 +73,12 @@ async def root():
 
 
 # API Routes
-from backend.api.routes import alerting, cicd, guardrails, redteam, scanner, threat_intel
+from backend.api.routes import alerting, auth, cicd, guardrails, redteam, scanner, threat_intel
 
+# Authentication (no prefix, uses /api/v1/auth from router)
+app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
+
+# Core services
 app.include_router(redteam.router, prefix="/api/v1/redteam", tags=["Red Team"])
 app.include_router(guardrails.router, prefix="/api/v1/guardrails", tags=["Guardrails"])
 app.include_router(scanner.router, prefix="/api/v1/scanner", tags=["Scanner"])
