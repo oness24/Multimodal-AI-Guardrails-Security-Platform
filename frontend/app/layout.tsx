@@ -7,6 +7,11 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'AdversarialShield - AI Security Platform',
   description: 'Multimodal AI Security Testing & Guardrails Platform',
+  keywords: ['AI Security', 'LLM Security', 'Adversarial Testing', 'Guardrails', 'Threat Detection'],
+  authors: [{ name: 'AdversarialShield Team' }],
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
@@ -15,8 +20,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className="dark">
+      <body className={inter.className}>
+        <div className="relative z-10">
+          {children}
+        </div>
+      </body>
     </html>
   )
 }

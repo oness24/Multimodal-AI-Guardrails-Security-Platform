@@ -2,26 +2,210 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    /* Cyberpunk color scheme */
+    --cyber-bg: 10 14 26;
+    --cyber-bg-secondary: 15 20 32;
+    --cyber-bg-tertiary: 21 27 46;
+    --cyber-border: 26 35 50;
+    --cyber-border-glow: 42 53 82;
+
+    /* Neon colors */
+    --neon-cyan: 0 255 249;
+    --neon-pink: 255 0 110;
+    --neon-purple: 191 0 255;
+    --neon-blue: 0 128 255;
+    --neon-green: 0 255 65;
+    --neon-yellow: 255 237 78;
+
+    /* Text colors */
+    --text-primary: 255 255 255;
+    --text-secondary: 156 163 175;
+    --text-muted: 107 114 128;
   }
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
+@layer base {
+  * {
+    @apply border-cyber-border;
+  }
+
+  body {
+    @apply bg-cyber-bg text-white;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Cyberpunk grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+      linear-gradient(to right, rgba(26, 35, 50, 0.3) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(26, 35, 50, 0.3) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanline effect */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
       to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+      transparent 50%,
+      rgba(0, 255, 249, 0.02) 50%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 1;
+    animation: scanline 10s linear infinite;
+  }
+
+  @keyframes scanline {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(100vh); }
+  }
+}
+
+@layer components {
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-cyber-bgSecondary/40 backdrop-blur-md border border-cyber-border;
+    @apply rounded-lg shadow-holographic;
+  }
+
+  /* Neon border effect */
+  .neon-border {
+    @apply border-2;
+    box-shadow: 0 0 5px currentColor, inset 0 0 5px currentColor;
+  }
+
+  /* Holographic text */
+  .holographic-text {
+    background: linear-gradient(
+      135deg,
+      #00fff9 0%,
+      #bf00ff 25%,
+      #ff006e 50%,
+      #bf00ff 75%,
+      #00fff9 100%
+    );
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: holographic 4s ease-in-out infinite;
+  }
+
+  /* Glitch effect */
+  .glitch {
+    position: relative;
+  }
+
+  .glitch::before,
+  .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glitch::before {
+    animation: glitch-1 2s infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+    transform: translate(-0.05em, -0.025em);
+    opacity: 0.8;
+  }
+
+  .glitch::after {
+    animation: glitch-2 2s infinite;
+    clip-path: polygon(0 45%, 100% 45%, 100% 100%, 0 100%);
+    transform: translate(0.05em, 0.025em);
+    opacity: 0.8;
+  }
+
+  @keyframes glitch-1 {
+    0%, 100% {
+      transform: translate(-0.05em, -0.025em);
+      color: rgb(var(--neon-cyan));
+    }
+    25% {
+      transform: translate(0.05em, 0.025em);
+      color: rgb(var(--neon-pink));
+    }
+    50% {
+      transform: translate(-0.025em, 0.05em);
+      color: rgb(var(--neon-purple));
+    }
+    75% {
+      transform: translate(0.025em, -0.05em);
+      color: rgb(var(--neon-blue));
+    }
+  }
+
+  @keyframes glitch-2 {
+    0%, 100% {
+      transform: translate(0.05em, 0.025em);
+      color: rgb(var(--neon-pink));
+    }
+    25% {
+      transform: translate(-0.05em, -0.025em);
+      color: rgb(var(--neon-cyan));
+    }
+    50% {
+      transform: translate(0.025em, -0.05em);
+      color: rgb(var(--neon-green));
+    }
+    75% {
+      transform: translate(-0.025em, 0.05em);
+      color: rgb(var(--neon-purple));
+    }
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-cyber-bgSecondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neon-cyan/30;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neon-cyan/50;
+  }
+}
+
+@layer utilities {
+  .text-shadow-neon {
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  }
+
+  .hover-glow {
+    transition: all 0.3s ease;
+  }
+
+  .hover-glow:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 0 20px currentColor;
+  }
 }
