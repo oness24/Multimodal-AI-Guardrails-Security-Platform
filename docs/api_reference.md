@@ -1190,6 +1190,112 @@ Health check for scanner service.
 }
 ```
 
+### POST /api/v1/scanner/dynamic/test
+
+Run dynamic security tests against an LLM application.
+
+Tests include exfiltration attempts, context leakage, unauthorized access, and input fuzzing.
+
+**Request Body:**
+```json
+{
+  "test_types": ["exfiltration", "leakage", "access", "fuzzing"]
+}
+```
+
+**Response:**
+```json
+{
+  "total_tests": 25,
+  "passed": 22,
+  "failed": 3,
+  "critical_failures": 1,
+  "high_failures": 2,
+  "medium_failures": 0,
+  "low_failures": 0,
+  "results": [
+    {
+      "test_id": "EXFIL-001-0",
+      "test_name": "Direct Data Request #1",
+      "test_type": "exfiltration",
+      "passed": false,
+      "severity": "critical",
+      "findings": [
+        "Response contains apparent credentials or secrets"
+      ],
+      "recommendation": "Implement output filtering and secret detection",
+      "owasp_id": "LLM06"
+    }
+  ],
+  "duration_seconds": 2.5
+}
+```
+
+### POST /api/v1/scanner/compliance/check
+
+Check compliance with security frameworks.
+
+**Request Body:**
+```json
+{
+  "frameworks": ["NIST_AI_RMF", "OWASP_LLM", "EU_AI_ACT"],
+  "app_config": {
+    "risk_management": {
+      "risk_tolerance_defined": true
+    },
+    "monitoring": {
+      "enabled": true
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "NIST_AI_RMF": {
+    "framework": "NIST AI RMF",
+    "total_controls": 10,
+    "compliant": 7,
+    "non_compliant": 2,
+    "compliance_percentage": 70.0,
+    "violations": [
+      {
+        "control_id": "MEASURE-2.3",
+        "framework": "NIST_AI_RMF",
+        "title": "Security vulnerabilities are identified",
+        "severity": "high",
+        "recommendation": "Remediate identified vulnerabilities"
+      }
+    ]
+  }
+}
+```
+
+### GET /api/v1/scanner/compliance/frameworks
+
+Get supported compliance frameworks and their controls.
+
+**Response:**
+```json
+{
+  "frameworks": {
+    "NIST_AI_RMF": {
+      "name": "NIST AI Risk Management Framework",
+      "version": "1.0"
+    },
+    "OWASP_LLM": {
+      "name": "OWASP Top 10 for LLM Applications",
+      "version": "1.1"
+    },
+    "EU_AI_ACT": {
+      "name": "EU AI Act (High-Risk AI Systems)",
+      "version": "2024"
+    }
+  }
+}
+```
+
 ---
 
 ## Error Responses
@@ -1295,6 +1401,25 @@ curl -X POST "http://localhost:8000/api/v1/redteam/generate" \
 ---
 
 ## Changelog
+
+### v0.7.0 (2025-11-16)
+- Dynamic Security Testing & Compliance Checking
+- Dynamic Test Engine for runtime vulnerability testing
+- Data exfiltration detection tests (5 direct + 3 encoded extraction tests)
+- Context leakage detection (5 system prompt + 3 context disclosure tests)
+- Unauthorized access tests (4 role elevation + 3 boundary bypass tests)
+- Input fuzzing engine (long input, special character, XSS, SQL injection patterns)
+- Compliance framework support (NIST AI RMF, OWASP LLM, EU AI Act)
+- NIST AI Risk Management Framework (10 controls)
+- OWASP Top 10 for LLM compliance checking
+- EU AI Act High-Risk AI Systems (7 articles)
+- Automated compliance violation detection and reporting
+- Test suite runner with severity categorization
+- OWASP LLM mapping for all dynamic tests
+- Compliance percentage calculation across frameworks
+- 3 dynamic scanner API endpoints
+- 50+ comprehensive dynamic test cases
+- Pattern-based detection for credentials, system prompts, role assumptions
 
 ### v0.6.0 (2025-11-16)
 - Vulnerability Scanner & Static Analysis

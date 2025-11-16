@@ -399,3 +399,288 @@ async def scanner_health_check() -> Dict[str, str]:
         "service": "vulnerability_scanner",
         "version": "1.0.0",
     }
+
+
+# Dynamic Scanner Endpoints
+from backend.scanner.dynamic_scanner import DynamicTestEngine
+from backend.scanner.compliance_checker import ComplianceChecker
+
+dynamic_engine = DynamicTestEngine()
+compliance_checker = ComplianceChecker()
+
+
+class DynamicTestRequest(BaseModel):
+    """Request for dynamic testing."""
+
+    test_types: Optional[List[str]] = Field(
+        None, description="Test types to run (exfiltration, leakage, access, fuzzing)"
+    )
+    target_endpoint: Optional[str] = Field(None, description="Target LLM endpoint URL")
+    test_prompts: Optional[List[str]] = Field(None, description="Custom test prompts")
+
+
+class DynamicTestResultResponse(BaseModel):
+    """Response model for dynamic test result."""
+
+    test_id: str
+    test_name: str
+    test_type: str
+    passed: bool
+    severity: str
+    findings: List[str]
+    evidence: Optional[str] = None
+    recommendation: Optional[str] = None
+    owasp_id: Optional[str] = None
+    compliance_violations: Optional[List[str]] = None
+
+
+class TestSuiteResultResponse(BaseModel):
+    """Response model for test suite result."""
+
+    total_tests: int
+    passed: int
+    failed: int
+    critical_failures: int
+    high_failures: int
+    medium_failures: int
+    low_failures: int
+    results: List[DynamicTestResultResponse]
+    duration_seconds: float
+
+
+class ComplianceCheckRequest(BaseModel):
+    """Request for compliance checking."""
+
+    frameworks: List[str] = Field(
+        ..., description="Frameworks to check (NIST_AI_RMF, OWASP_LLM, EU_AI_ACT)"
+    )
+    app_config: Dict[str, Any] = Field({}, description="Application configuration")
+    include_scan_results: bool = Field(
+        False, description="Include recent scan results in compliance check"
+    )
+
+
+class ComplianceViolationResponse(BaseModel):
+    """Response model for compliance violation."""
+
+    control_id: str
+    framework: str
+    title: str
+    description: str
+    severity: str
+    recommendation: str
+    evidence: Optional[str] = None
+
+
+class ComplianceReportResponse(BaseModel):
+    """Response model for compliance report."""
+
+    framework: str
+    total_controls: int
+    compliant: int
+    non_compliant: int
+    not_applicable: int
+    compliance_percentage: float
+    violations: List[ComplianceViolationResponse]
+    passed_controls: List[str]
+
+
+@router.post("/dynamic/test", response_model=TestSuiteResultResponse)
+async def run_dynamic_tests(request: DynamicTestRequest) -> TestSuiteResultResponse:
+    """
+    Run dynamic security tests against an LLM application.
+
+    Tests include:
+    - Data exfiltration attempts
+    - Context leakage detection
+    - Unauthorized access tests
+    - Input fuzzing
+
+    Args:
+        request: Dynamic test request
+
+    Returns:
+        Test suite results
+    """
+
+    async def mock_llm_function(prompt: str) -> str:
+        """Mock LLM function for testing."""
+        # In production, this would call the actual LLM endpoint
+        # For now, return a safe response
+        return f"This is a test response to: {prompt[:50]}..."
+
+    try:
+        result = await dynamic_engine.run_test_suite(
+            target_function=mock_llm_function,
+            test_types=request.test_types,
+        )
+
+        return TestSuiteResultResponse(
+            total_tests=result.total_tests,
+            passed=result.passed,
+            failed=result.failed,
+            critical_failures=result.critical_failures,
+            high_failures=result.high_failures,
+            medium_failures=result.medium_failures,
+            low_failures=result.low_failures,
+            results=[
+                DynamicTestResultResponse(
+                    test_id=r.test_id,
+                    test_name=r.test_name,
+                    test_type=r.test_type,
+                    passed=r.passed,
+                    severity=r.severity,
+                    findings=r.findings,
+                    evidence=r.evidence,
+                    recommendation=r.recommendation,
+                    owasp_id=r.owasp_id,
+                    compliance_violations=r.compliance_violations,
+                )
+                for r in result.results
+            ],
+            duration_seconds=result.duration_seconds,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in dynamic testing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Dynamic testing failed: {str(e)}")
+
+
+@router.post("/compliance/check", response_model=Dict[str, ComplianceReportResponse])
+async def check_compliance(
+    request: ComplianceCheckRequest,
+) -> Dict[str, ComplianceReportResponse]:
+    """
+    Check compliance with security frameworks.
+
+    Supported frameworks:
+    - NIST_AI_RMF: NIST AI Risk Management Framework
+    - OWASP_LLM: OWASP Top 10 for LLM Applications
+    - EU_AI_ACT: EU AI Act (High-Risk AI Systems)
+
+    Args:
+        request: Compliance check request
+
+    Returns:
+        Compliance reports for requested frameworks
+    """
+    try:
+        # Get recent scan results if requested
+        scan_results = []
+        if request.include_scan_results:
+            # In production, would fetch from database
+            # For now, use empty list
+            pass
+
+        reports = {}
+
+        if "NIST_AI_RMF" in request.frameworks:
+            nist_report = await compliance_checker.check_nist_ai_rmf_compliance(
+                scan_results, request.app_config
+            )
+            reports["NIST_AI_RMF"] = ComplianceReportResponse(
+                framework=nist_report.framework,
+                total_controls=nist_report.total_controls,
+                compliant=nist_report.compliant,
+                non_compliant=nist_report.non_compliant,
+                not_applicable=nist_report.not_applicable,
+                compliance_percentage=nist_report.compliance_percentage,
+                violations=[
+                    ComplianceViolationResponse(
+                        control_id=v.control_id,
+                        framework=v.framework,
+                        title=v.title,
+                        description=v.description,
+                        severity=v.severity,
+                        recommendation=v.recommendation,
+                        evidence=v.evidence,
+                    )
+                    for v in nist_report.violations
+                ],
+                passed_controls=nist_report.passed_controls,
+            )
+
+        if "OWASP_LLM" in request.frameworks:
+            owasp_report = await compliance_checker.check_owasp_llm_compliance(scan_results)
+            reports["OWASP_LLM"] = ComplianceReportResponse(
+                framework=owasp_report.framework,
+                total_controls=owasp_report.total_controls,
+                compliant=owasp_report.compliant,
+                non_compliant=owasp_report.non_compliant,
+                not_applicable=owasp_report.not_applicable,
+                compliance_percentage=owasp_report.compliance_percentage,
+                violations=[
+                    ComplianceViolationResponse(
+                        control_id=v.control_id,
+                        framework=v.framework,
+                        title=v.title,
+                        description=v.description,
+                        severity=v.severity,
+                        recommendation=v.recommendation,
+                        evidence=v.evidence,
+                    )
+                    for v in owasp_report.violations
+                ],
+                passed_controls=owasp_report.passed_controls,
+            )
+
+        if "EU_AI_ACT" in request.frameworks:
+            eu_report = await compliance_checker.check_eu_ai_act_compliance(
+                scan_results, request.app_config
+            )
+            reports["EU_AI_ACT"] = ComplianceReportResponse(
+                framework=eu_report.framework,
+                total_controls=eu_report.total_controls,
+                compliant=eu_report.compliant,
+                non_compliant=eu_report.non_compliant,
+                not_applicable=eu_report.not_applicable,
+                compliance_percentage=eu_report.compliance_percentage,
+                violations=[
+                    ComplianceViolationResponse(
+                        control_id=v.control_id,
+                        framework=v.framework,
+                        title=v.title,
+                        description=v.description,
+                        severity=v.severity,
+                        recommendation=v.recommendation,
+                        evidence=v.evidence,
+                    )
+                    for v in eu_report.violations
+                ],
+                passed_controls=eu_report.passed_controls,
+            )
+
+        return reports
+
+    except Exception as e:
+        logger.error(f"Error in compliance checking: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Compliance check failed: {str(e)}")
+
+
+@router.get("/compliance/frameworks")
+async def get_supported_frameworks() -> Dict[str, Any]:
+    """
+    Get supported compliance frameworks.
+
+    Returns:
+        Dictionary of supported frameworks and their controls
+    """
+    return {
+        "frameworks": {
+            "NIST_AI_RMF": {
+                "name": "NIST AI Risk Management Framework",
+                "version": "1.0",
+                "controls": compliance_checker.NIST_AI_RMF_CONTROLS,
+            },
+            "OWASP_LLM": {
+                "name": "OWASP Top 10 for LLM Applications",
+                "version": "1.1",
+                "controls": compliance_checker.OWASP_LLM_CONTROLS,
+            },
+            "EU_AI_ACT": {
+                "name": "EU AI Act (High-Risk AI Systems)",
+                "version": "2024",
+                "controls": compliance_checker.EU_AI_ACT_CONTROLS,
+            },
+        }
+    }
