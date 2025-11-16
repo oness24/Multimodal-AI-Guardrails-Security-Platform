@@ -969,6 +969,19 @@ curl -X POST "http://localhost:8000/api/v1/redteam/generate" \
 
 ## Changelog
 
+### v0.5.0 (2025-11-16)
+- Advanced Multimodal Attack Generation
+- Image-based attacks: text overlay, adversarial perturbations, steganography, visual confusion
+- Audio-based attacks: adversarial noise, ultrasonic, hidden commands, frequency manipulation
+- Cross-modal attacks: conflicting modalities, semantic gaps, coordinated injection
+- Adversarial perturbation generation (FGSM-style, random, uniform)
+- Steganographic text embedding in images
+- Ultrasonic attacks (inaudible to humans)
+- 4 multimodal API endpoints (image, audio, cross-modal, capabilities)
+- Support for PNG/JPEG images and WAV audio
+- Base64 encoding for multimodal content transport
+- 20+ multimodal attack techniques
+
 ### v0.4.0 (2025-11-16)
 - Contextual Guardrails & Response Filtering
 - RAG-aware contextual validation (context manipulation, poisoning detection)

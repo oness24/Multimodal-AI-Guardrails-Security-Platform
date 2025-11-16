@@ -4,7 +4,7 @@ Red Team API endpoints for AdversarialShield.
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,9 @@ from backend.core.database import get_db
 from backend.core.models import AttackLog, AttackPattern
 from backend.redteam.prompt_injection import PromptInjectionGenerator
 from backend.redteam.jailbreak import JailbreakEngine
+from backend.redteam.multimodal.image_attacks import ImageAttackGenerator
+from backend.redteam.multimodal.audio_attacks import AudioAttackGenerator
+from backend.redteam.multimodal.cross_modal_attacks import CrossModalAttackGenerator
 
 router = APIRouter()
 
@@ -715,4 +718,305 @@ async def get_jailbreak_stats(
         "successful_jailbreaks": successful,
         "overall_success_rate": round((successful / total * 100), 2) if total > 0 else 0.0,
         "pattern_stats": pattern_stats,
+    }
+
+# ===== Multimodal Attack Endpoints =====
+
+class ImageAttackRequest(BaseModel):
+    """Request model for image attack generation."""
+    
+    attack_type: str = Field(..., description="Attack type (text_overlay, adversarial, steganographic, visual_confusion)")
+    prompt: Optional[str] = Field(None, description="Prompt for text-based attacks")
+    epsilon: float = Field(0.05, description="Perturbation strength for adversarial attacks")
+    method: str = Field("fgsm", description="Perturbation method (fgsm, random, uniform)")
+
+
+class AudioAttackRequest(BaseModel):
+    """Request model for audio attack generation."""
+    
+    attack_type: str = Field(..., description="Attack type (adversarial_noise, ultrasonic, hidden_command, frequency_manipulation)")
+    command: Optional[str] = Field(None, description="Command for command-based attacks")
+    duration: float = Field(3.0, description="Duration in seconds")
+    noise_level: float = Field(0.05, description="Noise level for adversarial attacks")
+    frequency: float = Field(20000.0, description="Frequency for ultrasonic attacks")
+
+
+class CrossModalAttackRequest(BaseModel):
+    """Request model for cross-modal attack generation."""
+    
+    attack_type: str = Field(..., description="Attack type (conflicting, switching, fusion, coordinated, masking, semantic_gap)")
+    text_content: Optional[str] = Field(None, description="Text content")
+    image_prompt: Optional[str] = Field(None, description="Image prompt")
+    audio_command: Optional[str] = Field(None, description="Audio command")
+    exploitation_technique: str = Field("timing", description="Exploitation technique")
+
+
+@router.post("/multimodal/image")
+async def generate_image_attack(
+    request: ImageAttackRequest,
+    image_file: Optional[UploadFile] = File(None),
+) -> Dict[str, Any]:
+    """
+    Generate image-based adversarial attack.
+    
+    Supports:
+    - Text overlay injection
+    - Adversarial perturbations (FGSM-style)
+    - Steganographic embedding
+    - Visual confusion attacks
+    """
+    try:
+        generator = ImageAttackGenerator()
+        
+        # Read base image if provided
+        base_image = None
+        if image_file:
+            base_image = await image_file.read()
+        
+        # Generate attack based on type
+        if request.attack_type == "text_overlay":
+            if not request.prompt:
+                raise HTTPException(status_code=400, detail="Prompt required for text_overlay")
+            
+            result = await generator.generate_text_overlay_attack(
+                prompt=request.prompt,
+                base_image=base_image,
+            )
+        
+        elif request.attack_type == "adversarial":
+            if not base_image:
+                raise HTTPException(status_code=400, detail="Base image required for adversarial")
+            
+            result = await generator.generate_adversarial_perturbation(
+                base_image=base_image,
+                epsilon=request.epsilon,
+                method=request.method,
+            )
+        
+        elif request.attack_type == "steganographic":
+            if not request.prompt:
+                raise HTTPException(status_code=400, detail="Prompt required for steganographic")
+            
+            result = await generator.generate_steganographic_attack(
+                prompt=request.prompt,
+                base_image=base_image,
+            )
+        
+        elif request.attack_type == "visual_confusion":
+            if not request.prompt:
+                raise HTTPException(status_code=400, detail="Prompt required for visual_confusion")
+            
+            result = await generator.generate_visual_confusion_attack(
+                misleading_context=request.prompt,
+            )
+        
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown attack type: {request.attack_type}")
+        
+        # Convert image to base64 for response
+        image_base64 = generator.image_to_base64(result.image_data)
+        
+        return {
+            "image_base64": image_base64,
+            "image_format": result.image_format,
+            "attack_type": result.attack_type,
+            "technique": result.technique,
+            "metadata": result.metadata,
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image attack generation failed: {str(e)}")
+
+
+@router.post("/multimodal/audio")
+async def generate_audio_attack(
+    request: AudioAttackRequest,
+    audio_file: Optional[UploadFile] = File(None),
+) -> Dict[str, Any]:
+    """
+    Generate audio-based adversarial attack.
+    
+    Supports:
+    - Adversarial noise injection
+    - Ultrasonic attacks
+    - Hidden voice commands
+    - Frequency manipulation
+    """
+    try:
+        generator = AudioAttackGenerator()
+        
+        # Read base audio if provided
+        base_audio = None
+        if audio_file:
+            base_audio = await audio_file.read()
+        
+        # Generate attack based on type
+        if request.attack_type == "adversarial_noise":
+            result = await generator.generate_adversarial_noise(
+                base_audio=base_audio,
+                duration=request.duration,
+                noise_level=request.noise_level,
+            )
+        
+        elif request.attack_type == "ultrasonic":
+            if not request.command:
+                raise HTTPException(status_code=400, detail="Command required for ultrasonic")
+            
+            result = await generator.generate_ultrasonic_attack(
+                command=request.command,
+                duration=request.duration,
+                frequency=request.frequency,
+            )
+        
+        elif request.attack_type == "hidden_command":
+            if not request.command:
+                raise HTTPException(status_code=400, detail="Command required for hidden_command")
+            
+            result = await generator.generate_hidden_command(
+                command=request.command,
+                cover_audio=base_audio,
+            )
+        
+        elif request.attack_type == "frequency_manipulation":
+            result = await generator.generate_frequency_manipulation(
+                base_audio=base_audio,
+                duration=request.duration,
+            )
+        
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown attack type: {request.attack_type}")
+        
+        # Convert audio to base64 for response
+        audio_base64 = generator.audio_to_base64(result.audio_data)
+        
+        return {
+            "audio_base64": audio_base64,
+            "audio_format": result.audio_format,
+            "attack_type": result.attack_type,
+            "technique": result.technique,
+            "metadata": result.metadata,
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Audio attack generation failed: {str(e)}")
+
+
+@router.post("/multimodal/cross-modal")
+async def generate_cross_modal_attack(
+    request: CrossModalAttackRequest,
+    image_file: Optional[UploadFile] = File(None),
+) -> Dict[str, Any]:
+    """
+    Generate cross-modal adversarial attack.
+    
+    Supports:
+    - Conflicting modality attacks
+    - Modality switching
+    - Fusion exploitation
+    - Coordinated injection
+    - Modality masking
+    - Semantic gap attacks
+    """
+    try:
+        generator = CrossModalAttackGenerator()
+        
+        # Read image if provided
+        image_data = None
+        if image_file:
+            image_data = await image_file.read()
+        
+        # Generate attack based on type
+        if request.attack_type == "conflicting":
+            if not request.text_content or not request.image_prompt:
+                raise HTTPException(status_code=400, detail="Both text_content and image_prompt required")
+            
+            if not image_data:
+                raise HTTPException(status_code=400, detail="Image file required for conflicting attack")
+            
+            result = await generator.generate_conflicting_modality_attack(
+                text_prompt=request.text_content,
+                image_prompt=request.image_prompt,
+                text_data=request.text_content,
+                image_data=image_data,
+            )
+        
+        elif request.attack_type == "semantic_gap":
+            if not request.text_content or not request.image_prompt:
+                raise HTTPException(status_code=400, detail="Both text_content and image_prompt required")
+            
+            result = await generator.generate_semantic_gap_attack(
+                text_semantic=request.text_content,
+                image_semantic=request.image_prompt,
+            )
+        
+        elif request.attack_type == "coordinated":
+            if not request.text_content or not request.image_prompt:
+                raise HTTPException(status_code=400, detail="Both text_content and image_prompt required")
+            
+            result = await generator.generate_coordinated_injection_attack(
+                text_injection=request.text_content,
+                image_injection=request.image_prompt,
+                audio_command=request.audio_command,
+            )
+        
+        else:
+            raise HTTPException(status_code=400, detail=f"Attack type {request.attack_type} not yet implemented")
+        
+        # Convert modalities to base64
+        modalities_base64 = {}
+        for modality_type, data in result.modalities.items():
+            modalities_base64[modality_type] = generator.image_gen.image_to_base64(data) if modality_type == "image" else data.decode() if isinstance(data, bytes) else str(data)
+        
+        return {
+            "modalities": modalities_base64,
+            "attack_type": result.attack_type,
+            "technique": result.technique,
+            "metadata": result.metadata,
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cross-modal attack generation failed: {str(e)}")
+
+
+@router.get("/multimodal/capabilities")
+async def get_multimodal_capabilities() -> Dict[str, Any]:
+    """
+    Get multimodal attack generation capabilities.
+    
+    Returns available attack types and techniques for each modality.
+    """
+    return {
+        "image_attacks": {
+            "types": ["text_overlay", "adversarial", "steganographic", "visual_confusion"],
+            "techniques": {
+                "text_overlay": "Overlay text prompts on images",
+                "adversarial": "Generate adversarial perturbations (FGSM-style)",
+                "steganographic": "Embed hidden text in images",
+                "visual_confusion": "Create visually misleading content",
+            },
+        },
+        "audio_attacks": {
+            "types": ["adversarial_noise", "ultrasonic", "hidden_command", "frequency_manipulation"],
+            "techniques": {
+                "adversarial_noise": "Inject adversarial noise",
+                "ultrasonic": "Generate ultrasonic attacks (inaudible to humans)",
+                "hidden_command": "Embed hidden voice commands",
+                "frequency_manipulation": "Manipulate audio frequencies",
+            },
+        },
+        "cross_modal_attacks": {
+            "types": ["conflicting", "switching", "fusion", "coordinated", "masking", "semantic_gap"],
+            "techniques": {
+                "conflicting": "Conflicting information across modalities",
+                "switching": "Hidden commands in secondary modality",
+                "fusion": "Exploit multimodal fusion layer",
+                "coordinated": "Synchronized attack across all modalities",
+                "masking": "One modality masks another's intent",
+                "semantic_gap": "Exploit semantic gaps between modalities",
+            },
+        },
+        "supported_formats": {
+            "image": ["PNG", "JPEG"],
+            "audio": ["WAV"],
+        },
     }

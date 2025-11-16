@@ -46,6 +46,9 @@ dependencies = [
     "numpy>=1.24.0",
     "pandas>=2.1.0",
 
+    # Multimodal Processing
+    "Pillow>=10.0.0",
+
     # Guardrails
     "guardrails-ai>=0.4.0",
     "presidio-analyzer>=2.2.0",
