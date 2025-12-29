@@ -1,0 +1,92 @@
+[
+  {
+    "id": "vuln-001",
+    "name": "Prompt Injection via User Input",
+    "cwe_id": "CWE-20",
+    "owasp_category": "LLM01:2023-Prompt Injection",
+    "severity": "critical",
+    "description": "User input is directly concatenated into prompts without validation, allowing attackers to override system instructions.",
+    "affected_components": ["prompt_template", "user_input_handler"],
+    "remediation": [
+      "Implement input validation and sanitization",
+      "Use structured prompt formats with clear boundaries",
+      "Employ guardrails to detect injection attempts",
+      "Consider using separate system and user message roles"
+    ],
+    "references": [
+      "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+    ]
+  },
+  {
+    "id": "vuln-002",
+    "name": "Sensitive Information Disclosure",
+    "cwe_id": "CWE-200",
+    "owasp_category": "LLM06:2023-Sensitive Information Disclosure",
+    "severity": "high",
+    "description": "LLM may expose sensitive information from training data, system prompts, or previous conversations.",
+    "affected_components": ["llm_response_handler", "context_management"],
+    "remediation": [
+      "Implement output filtering for PII",
+      "Use response validation before returning to users",
+      "Limit context window exposure",
+      "Implement strict access controls"
+    ],
+    "references": [
+      "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+    ]
+  },
+  {
+    "id": "vuln-003",
+    "name": "Insecure Output Handling",
+    "cwe_id": "CWE-94",
+    "owasp_category": "LLM02:2023-Insecure Output Handling",
+    "severity": "high",
+    "description": "LLM output is used in downstream systems without proper validation, potentially leading to code injection or XSS.",
+    "affected_components": ["output_processor", "frontend_renderer"],
+    "remediation": [
+      "Sanitize all LLM outputs before use",
+      "Never execute LLM output as code",
+      "Implement strict output schemas",
+      "Use context-aware output encoding"
+    ],
+    "references": [
+      "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+    ]
+  },
+  {
+    "id": "vuln-004",
+    "name": "Model Denial of Service",
+    "cwe_id": "CWE-400",
+    "owasp_category": "LLM04:2023-Model Denial of Service",
+    "severity": "medium",
+    "description": "Attackers can craft inputs that consume excessive resources or cause model instability.",
+    "affected_components": ["input_handler", "model_interface"],
+    "remediation": [
+      "Implement rate limiting",
+      "Set maximum input/output token limits",
+      "Monitor resource consumption",
+      "Implement request queuing and timeouts"
+    ],
+    "references": [
+      "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+    ]
+  },
+  {
+    "id": "vuln-005",
+    "name": "Excessive Agency",
+    "cwe_id": "CWE-284",
+    "owasp_category": "LLM08:2023-Excessive Agency",
+    "severity": "critical",
+    "description": "LLM is granted excessive permissions or can trigger harmful actions without proper authorization.",
+    "affected_components": ["agent_framework", "tool_integration"],
+    "remediation": [
+      "Implement principle of least privilege",
+      "Require human approval for sensitive actions",
+      "Log all LLM-initiated actions",
+      "Implement action rate limiting"
+    ],
+    "references": [
+      "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+    ]
+  }
+]
